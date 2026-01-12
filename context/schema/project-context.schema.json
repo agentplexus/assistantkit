@@ -1,0 +1,219 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/grokify/aiassistkit/context/schema/project-context.schema.json",
+  "title": "Project Context Schema",
+  "description": "A tool-agnostic schema for describing project context to AI coding assistants",
+  "type": "object",
+  "required": ["name"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to the JSON Schema for validation"
+    },
+    "name": {
+      "type": "string",
+      "description": "The project name"
+    },
+    "description": {
+      "type": "string",
+      "description": "A brief description of the project's purpose"
+    },
+    "version": {
+      "type": "string",
+      "description": "The current project version"
+    },
+    "language": {
+      "type": "string",
+      "description": "The primary programming language",
+      "examples": ["go", "typescript", "python", "rust", "java"]
+    },
+    "architecture": {
+      "type": "object",
+      "description": "High-level architecture description",
+      "properties": {
+        "pattern": {
+          "type": "string",
+          "description": "The primary architectural pattern",
+          "examples": ["adapter", "microservices", "monolith", "hexagonal", "clean"]
+        },
+        "summary": {
+          "type": "string",
+          "description": "A brief summary of the architecture"
+        },
+        "diagrams": {
+          "type": "array",
+          "description": "ASCII or mermaid diagrams",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "type": {
+                "type": "string",
+                "enum": ["ascii", "mermaid"]
+              },
+              "content": { "type": "string" }
+            },
+            "required": ["content"]
+          }
+        }
+      }
+    },
+    "packages": {
+      "type": "array",
+      "description": "Key packages/modules and their purposes",
+      "items": {
+        "type": "object",
+        "required": ["path", "purpose"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Relative path to the package"
+          },
+          "purpose": {
+            "type": "string",
+            "description": "Brief description of the package's purpose"
+          },
+          "public": {
+            "type": "boolean",
+            "description": "Whether this is part of the public API",
+            "default": true
+          }
+        }
+      }
+    },
+    "commands": {
+      "type": "object",
+      "description": "Common commands for working with the project",
+      "properties": {
+        "build": {
+          "type": "string",
+          "description": "Command to build the project"
+        },
+        "test": {
+          "type": "string",
+          "description": "Command to run tests"
+        },
+        "lint": {
+          "type": "string",
+          "description": "Command to run linting"
+        },
+        "format": {
+          "type": "string",
+          "description": "Command to format code"
+        },
+        "run": {
+          "type": "string",
+          "description": "Command to run the project"
+        }
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "conventions": {
+      "type": "array",
+      "description": "Coding conventions and patterns used in the project",
+      "items": {
+        "type": "string"
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "Key dependencies and their purposes",
+      "properties": {
+        "runtime": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "purpose": { "type": "string" }
+            },
+            "required": ["name"]
+          }
+        },
+        "development": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "purpose": { "type": "string" }
+            },
+            "required": ["name"]
+          }
+        }
+      }
+    },
+    "testing": {
+      "type": "object",
+      "description": "Testing strategy and configuration",
+      "properties": {
+        "framework": {
+          "type": "string",
+          "description": "The testing framework used"
+        },
+        "coverage": {
+          "type": "string",
+          "description": "Coverage requirements or current coverage"
+        },
+        "patterns": {
+          "type": "array",
+          "description": "Testing patterns and conventions",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "files": {
+      "type": "object",
+      "description": "Important files and their purposes",
+      "properties": {
+        "entryPoints": {
+          "type": "array",
+          "description": "Main entry point files",
+          "items": { "type": "string" }
+        },
+        "config": {
+          "type": "array",
+          "description": "Configuration files",
+          "items": { "type": "string" }
+        },
+        "ignore": {
+          "type": "array",
+          "description": "Files/patterns to ignore during analysis",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "description": "Additional notes, gotchas, or important information",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "content": { "type": "string" },
+          "severity": {
+            "type": "string",
+            "enum": ["info", "warning", "critical"],
+            "default": "info"
+          }
+        },
+        "required": ["content"]
+      }
+    },
+    "related": {
+      "type": "array",
+      "description": "Related projects or resources",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "url": { "type": "string", "format": "uri" },
+          "description": { "type": "string" }
+        },
+        "required": ["name"]
+      }
+    }
+  }
+}
