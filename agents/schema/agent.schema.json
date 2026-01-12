@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/grokify/aiassistkit/agents/schema/agent.schema.json",
+  "title": "Agent",
+  "description": "A canonical agent definition for AI assistants. Maps to Claude Code, Gemini CLI, Codex CLI, and Kiro CLI.",
+  "type": "object",
+  "required": ["name"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique identifier for the agent (e.g., 'release-coordinator', 'qa')",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Brief summary of what the agent does and when to use it"
+    },
+    "instructions": {
+      "type": "string",
+      "description": "Detailed system prompt for the agent with full guidance on behavior"
+    },
+    "model": {
+      "type": "string",
+      "description": "Preferred AI model (e.g., 'haiku', 'sonnet', 'opus')",
+      "enum": ["haiku", "sonnet", "opus"]
+    },
+    "tools": {
+      "type": "array",
+      "description": "Tools available to the agent (e.g., Read, Write, Bash, Grep, Glob)",
+      "items": {
+        "type": "string"
+      }
+    },
+    "skills": {
+      "type": "array",
+      "description": "Skills or capabilities the agent can invoke",
+      "items": {
+        "type": "string"
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "External CLI tools required by this agent (e.g., go, golangci-lint, schangelog)",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
