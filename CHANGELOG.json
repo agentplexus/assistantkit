@@ -7,6 +7,25 @@
   "maintainers": ["grokify"],
   "releases": [
     {
+      "version": "v0.2.0",
+      "date": "2026-01-17",
+      "highlights": [
+        { "description": "Multi-platform agent generation with new AWS adapters and genagents CLI" }
+      ],
+      "added": [
+        { "description": "`agents/agentkit` adapter for AWS AgentKit/Agent Builder JSON format", "commit": "d49e2f5" },
+        { "description": "`agents/awsagentcore` adapter for AWS CDK TypeScript code generation", "commit": "d49e2f5" },
+        { "description": "`cmd/genagents` CLI for multi-platform agent generation from canonical specs", "commit": "5bcd07e" }
+      ],
+      "documentation": [
+        { "description": "Comprehensive MkDocs documentation site with Material theme", "commit": "2ca28b3" },
+        { "description": "Release notes section with v0.1.0 and v0.2.0 notes", "commit": "ab6ec4e" }
+      ],
+      "infrastructure": [
+        { "description": "GitHub Actions workflow for MkDocs gh-pages deployment", "commit": "70d0053" }
+      ]
+    },
+    {
       "version": "v0.1.0",
       "date": "2026-01-12",
       "highlights": [
