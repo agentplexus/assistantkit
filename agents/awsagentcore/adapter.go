@@ -375,11 +375,11 @@ func GeneratePackageJSON(teamName string) ([]byte, error) {
 			"destroy": "cdk destroy",
 		},
 		"devDependencies": map[string]string{
-			"@types/node":           "^20.0.0",
-			"aws-cdk":               "^2.170.0",
-			"ts-node":               "^10.9.0",
-			"typescript":            "^5.0.0",
-			"source-map-support":    "^0.5.21",
+			"@types/node":        "^20.0.0",
+			"aws-cdk":            "^2.170.0",
+			"ts-node":            "^10.9.0",
+			"typescript":         "^5.0.0",
+			"source-map-support": "^0.5.21",
 		},
 		"dependencies": map[string]string{
 			"aws-cdk-lib": "^2.170.0",
