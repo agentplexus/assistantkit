@@ -1,11 +1,23 @@
 {
   "ir_version": "1.0",
-  "project": "aiassistkit",
-  "repository": "https://github.com/agentplexus/aiassistkit",
+  "project": "assistantkit",
+  "repository": "https://github.com/agentplexus/assistantkit",
   "versioning": "semver",
   "commit_convention": "conventional",
   "maintainers": ["agentplexus"],
   "releases": [
+    {
+      "version": "v0.5.0",
+      "date": "2026-01-18",
+      "highlights": [
+        { "description": "Module renamed from aiassistkit to assistantkit" }
+      ],
+      "changed": [
+        { "description": "**BREAKING:** Module path renamed from `github.com/agentplexus/aiassistkit` to `github.com/agentplexus/assistantkit`" },
+        { "description": "Package name renamed from `aiassistkit` to `assistantkit`" },
+        { "description": "Main source file renamed from `aiassistkit.go` to `assistantkit.go`" }
+      ]
+    },
     {
       "version": "v0.4.0",
       "date": "2026-01-17",
@@ -20,7 +32,7 @@
         { "description": "`hooks/windsurf` adapter for Windsurf hooks", "commit": "e7155b9" }
       ],
       "changed": [
-        { "description": "Module path changed from `github.com/grokify/aiassistkit` to `github.com/agentplexus/aiassistkit`", "commit": "35abed5" }
+        { "description": "Module path changed from `github.com/grokify/aiassistkit` to `github.com/agentplexus/assistantkit`", "commit": "35abed5" }
       ],
       "documentation": [
         { "description": "Updated documentation for agentplexus migration", "commit": "f02d4da" },
