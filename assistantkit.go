@@ -63,7 +63,7 @@
 package assistantkit
 
 // Version is the current version of Assistant Kit.
-const Version = "0.5.0"
+const Version = "0.7.0"
 
 // ConfigType represents the type of configuration.
 type ConfigType string
