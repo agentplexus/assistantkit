@@ -36,6 +36,7 @@ import (
 	// Import adapters for side-effect registration
 	_ "github.com/agentplexus/assistantkit/skills/claude"
 	_ "github.com/agentplexus/assistantkit/skills/codex"
+	_ "github.com/agentplexus/assistantkit/skills/kiro"
 )
 
 // Re-export core types for convenience

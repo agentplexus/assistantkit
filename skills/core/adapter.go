@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -126,13 +127,29 @@ func Convert(data []byte, from, to string) ([]byte, error) {
 	return DefaultRegistry.Convert(data, from, to)
 }
 
-// ReadCanonicalFile reads a canonical skill.json file.
+// ReadCanonicalFile reads a canonical skill file (JSON or Markdown with YAML frontmatter).
 func ReadCanonicalFile(path string) (*Skill, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, &ReadError{Path: path, Err: err}
 	}
 
+	// Detect format: if it starts with "---" or has .md extension, parse as markdown
+	ext := filepath.Ext(path)
+	if ext == ".md" || (len(data) >= 3 && string(data[:3]) == "---") {
+		skill, err := ParseSkillMarkdown(data)
+		if err != nil {
+			return nil, &ParseError{Format: "markdown", Path: path, Err: err}
+		}
+		// Infer name from filename if not set
+		if skill.Name == "" {
+			base := filepath.Base(path)
+			skill.Name = strings.TrimSuffix(base, filepath.Ext(base))
+		}
+		return skill, nil
+	}
+
+	// Fall back to JSON
 	var skill Skill
 	if err := json.Unmarshal(data, &skill); err != nil {
 		return nil, &ParseError{Format: "canonical", Path: path, Err: err}
@@ -160,7 +177,10 @@ func WriteCanonicalFile(skill *Skill, path string) error {
 	return nil
 }
 
-// ReadCanonicalDir reads all skill.json files from subdirectories.
+// ReadCanonicalDir reads all skill files from a directory.
+// Supports both:
+// - Subdirectories with skill.json files
+// - Direct .md files with YAML frontmatter
 func ReadCanonicalDir(dir string) ([]*Skill, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -169,10 +189,21 @@ func ReadCanonicalDir(dir string) ([]*Skill, error) {
 
 	var skills []*Skill
 	for _, entry := range entries {
+		// Handle direct .md files (flat structure)
 		if !entry.IsDir() {
+			ext := filepath.Ext(entry.Name())
+			if ext == ".md" {
+				skillPath := filepath.Join(dir, entry.Name())
+				skill, err := ReadCanonicalFile(skillPath)
+				if err != nil {
+					return nil, err
+				}
+				skills = append(skills, skill)
+			}
 			continue
 		}
 
+		// Handle subdirectories with skill.json
 		skillPath := filepath.Join(dir, entry.Name(), "skill.json")
 		if _, err := os.Stat(skillPath); os.IsNotExist(err) {
 			continue
@@ -206,4 +237,75 @@ func WriteSkillsToDir(skills []*Skill, dir string, adapterName string) error {
 	}
 
 	return nil
+}
+
+// ParseSkillMarkdown parses a Markdown file with YAML frontmatter into a Skill.
+func ParseSkillMarkdown(data []byte) (*Skill, error) {
+	content := string(data)
+
+	if !strings.HasPrefix(content, "---") {
+		// No frontmatter, treat entire content as instructions
+		return &Skill{Instructions: strings.TrimSpace(content)}, nil
+	}
+
+	parts := strings.SplitN(content, "---", 3)
+	if len(parts) < 3 {
+		return &Skill{Instructions: strings.TrimSpace(content)}, nil
+	}
+
+	skill := &Skill{}
+
+	// Parse simple YAML key: value pairs from frontmatter
+	lines := strings.Split(strings.TrimSpace(parts[1]), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		idx := strings.Index(line, ":")
+		if idx <= 0 {
+			continue
+		}
+		key := strings.TrimSpace(line[:idx])
+		value := strings.TrimSpace(line[idx+1:])
+		// Remove quotes if present
+		value = strings.Trim(value, "\"'")
+
+		switch key {
+		case "name":
+			skill.Name = value
+		case "description":
+			skill.Description = value
+		case "triggers":
+			skill.Triggers = parseList(value)
+		case "dependencies":
+			skill.Dependencies = parseList(value)
+		case "scripts":
+			skill.Scripts = parseList(value)
+		case "references":
+			skill.References = parseList(value)
+		case "assets":
+			skill.Assets = parseList(value)
+		}
+	}
+
+	// Body becomes instructions
+	skill.Instructions = strings.TrimSpace(parts[2])
+
+	return skill, nil
+}
+
+// parseList parses a comma-separated or bracket-enclosed list.
+func parseList(s string) []string {
+	s = strings.Trim(s, "[]")
+	parts := strings.Split(s, ",")
+	var result []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		p = strings.Trim(p, "\"'")
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
 }
