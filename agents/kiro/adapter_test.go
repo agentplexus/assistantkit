@@ -36,8 +36,8 @@ func TestAdapter_Parse(t *testing.T) {
 	input := `{
   "name": "release-agent",
   "description": "Automates software releases",
-  "tools": ["read", "write", "shell"],
-  "allowedTools": ["read"],
+  "tools": ["fs_read", "fs_write", "execute_bash"],
+  "allowedTools": ["fs_read"],
   "resources": ["file://README.md"],
   "prompt": "You are a release automation specialist.",
   "model": "claude-sonnet-4"
@@ -113,11 +113,11 @@ func TestAdapter_Marshal(t *testing.T) {
 	}
 
 	// Check tools mapping
-	if !strings.Contains(output, `"read"`) {
-		t.Error("Output should contain read tool")
+	if !strings.Contains(output, `"fs_read"`) {
+		t.Error("Output should contain fs_read tool")
 	}
-	if !strings.Contains(output, `"shell"`) {
-		t.Error("Output should contain shell tool (mapped from Bash)")
+	if !strings.Contains(output, `"execute_bash"`) {
+		t.Error("Output should contain execute_bash tool (mapped from Bash)")
 	}
 
 	// Check skills mapped to resources
@@ -214,15 +214,15 @@ func TestAdapter_WriteFile_ReadFile(t *testing.T) {
 func TestModelMapping(t *testing.T) {
 	tests := []struct {
 		kiroModel      string
-		canonicalModel string
+		canonicalModel core.Model
 	}{
-		{"claude-sonnet-4", "sonnet"},
-		{"claude-4-sonnet", "sonnet"},
-		{"claude-opus-4", "opus"},
-		{"claude-4-opus", "opus"},
-		{"claude-haiku", "haiku"},
-		{"claude-3-haiku", "haiku"},
-		{"unknown-model", "unknown-model"},
+		{"claude-sonnet-4", core.ModelSonnet},
+		{"claude-4-sonnet", core.ModelSonnet},
+		{"claude-opus-4", core.ModelOpus},
+		{"claude-4-opus", core.ModelOpus},
+		{"claude-haiku", core.ModelHaiku},
+		{"claude-3-haiku", core.ModelHaiku},
+		{"unknown-model", core.Model("unknown-model")},
 	}
 
 	for _, tt := range tests {
@@ -234,7 +234,7 @@ func TestModelMapping(t *testing.T) {
 }
 
 func TestToolMapping(t *testing.T) {
-	kiroTools := []string{"read", "write", "shell", "web_search", "grep"}
+	kiroTools := []string{"fs_read", "fs_write", "execute_bash", "web_search", "grep"}
 	expected := []string{"Read", "Write", "Bash", "WebSearch", "Grep"}
 
 	got := mapKiroToolsToCanonical(kiroTools)
@@ -252,7 +252,8 @@ func TestToolMapping(t *testing.T) {
 
 func TestReverseToolMapping(t *testing.T) {
 	canonicalTools := []string{"Read", "Write", "Bash", "WebFetch", "Edit"}
-	expected := []string{"read", "write", "shell", "web_fetch", "write"}
+	// Edit maps to fs_write which is deduplicated with Write's fs_write
+	expected := []string{"fs_read", "fs_write", "execute_bash", "web_fetch"}
 
 	got := mapCanonicalToolsToKiro(canonicalTools)
 

@@ -13,53 +13,26 @@ func TestNewAgent(t *testing.T) {
 	}
 }
 
-func TestAgentSetModel(t *testing.T) {
-	agent := NewAgent("test", "test")
+func TestAgentWithModel(t *testing.T) {
+	agent := NewAgent("test", "test").WithModel(ModelSonnet)
 
-	agent.SetModel("sonnet")
-
-	if agent.Model != "sonnet" {
+	if agent.Model != ModelSonnet {
 		t.Errorf("expected Model 'sonnet', got '%s'", agent.Model)
 	}
 }
 
-func TestAgentAddTool(t *testing.T) {
-	agent := NewAgent("test", "test")
-
-	agent.AddTool("Read")
-	agent.AddTool("Write")
+func TestAgentWithTools(t *testing.T) {
+	agent := NewAgent("test", "test").WithTools("Read", "Write")
 
 	if len(agent.Tools) != 2 {
 		t.Errorf("expected 2 tools, got %d", len(agent.Tools))
 	}
 }
 
-func TestAgentAddTools(t *testing.T) {
-	agent := NewAgent("test", "test")
+func TestAgentWithInstructions(t *testing.T) {
+	agent := NewAgent("test", "test").WithInstructions("Do the thing")
 
-	agent.AddTools("Read", "Write", "Bash", "Glob")
-
-	if len(agent.Tools) != 4 {
-		t.Errorf("expected 4 tools, got %d", len(agent.Tools))
-	}
-}
-
-func TestAgentAddSkill(t *testing.T) {
-	agent := NewAgent("test", "test")
-
-	agent.AddSkill("version-analysis")
-
-	if len(agent.Skills) != 1 {
-		t.Errorf("expected 1 skill, got %d", len(agent.Skills))
-	}
-}
-
-func TestAgentAddSkills(t *testing.T) {
-	agent := NewAgent("test", "test")
-
-	agent.AddSkills("version-analysis", "commit-classification")
-
-	if len(agent.Skills) != 2 {
-		t.Errorf("expected 2 skills, got %d", len(agent.Skills))
+	if agent.Instructions != "Do the thing" {
+		t.Errorf("expected Instructions 'Do the thing', got '%s'", agent.Instructions)
 	}
 }

@@ -30,11 +30,11 @@ func TestClaudeAdapter(t *testing.T) {
 	}
 
 	// Test marshal
-	agent := NewAgent("release-coordinator", "Orchestrates software releases")
-	agent.SetModel("sonnet")
-	agent.AddTools("Read", "Write", "Bash")
-	agent.AddSkills("version-analysis", "commit-classification")
-	agent.Instructions = "You are a release coordinator agent."
+	agent := NewAgent("release-coordinator", "Orchestrates software releases").
+		WithModel(ModelSonnet).
+		WithTools("Read", "Write", "Bash").
+		WithInstructions("You are a release coordinator agent.")
+	agent.Skills = []string{"version-analysis", "commit-classification"}
 
 	data, err := adapter.Marshal(agent)
 	if err != nil {
@@ -91,8 +91,9 @@ func TestClaudeAdapterMinimal(t *testing.T) {
 		t.Fatal("Claude adapter not found")
 	}
 
-	// Test with minimal agent (no tools, skills, or model)
+	// Test with minimal agent (no tools, skills, or explicit model)
 	agent := NewAgent("simple-agent", "A simple agent")
+	agent.Model = "" // Clear default model for minimal test
 	agent.Instructions = "Do something simple."
 
 	data, err := adapter.Marshal(agent)
@@ -102,9 +103,9 @@ func TestClaudeAdapterMinimal(t *testing.T) {
 
 	content := string(data)
 
-	// Should not have model, tools, or skills in frontmatter
+	// Should not have model, tools, or skills in frontmatter when cleared/empty
 	if strings.Contains(content, "model:") {
-		t.Error("should not have model when not set")
+		t.Error("should not have model when explicitly cleared")
 	}
 	if strings.Contains(content, "tools:") {
 		t.Error("should not have tools when empty")
