@@ -24,19 +24,26 @@ import (
 	"github.com/agentplexus/assistantkit/agents/agentkit"
 	"github.com/agentplexus/assistantkit/agents/awsagentcore"
 	"github.com/agentplexus/assistantkit/agents/core"
+	"github.com/agentplexus/assistantkit/skills"
+	skillscore "github.com/agentplexus/assistantkit/skills/core"
 
 	// Import adapters to register them
 	_ "github.com/agentplexus/assistantkit/agents/claude"
 	_ "github.com/agentplexus/assistantkit/agents/kiro"
+	_ "github.com/agentplexus/assistantkit/skills/kiro"
 )
 
 func main() {
 	specDir := flag.String("spec", "plugins/spec/agents", "Directory containing canonical agent specs (.md files)")
+	skillsDir := flag.String("skills", "", "Directory containing canonical skill specs (.md files)")
+	skillsOutput := flag.String("skills-output", "", "Output directory for generated skills/steering files")
 	outputDir := flag.String("output", "", "Output directory for generated agents")
 	format := flag.String("format", "claude", "Output format (claude, kiro, agentkit, aws-agentcore)")
 	targets := flag.String("targets", "", "Multiple targets as format:dir pairs (e.g., claude:.claude/agents,kiro:plugins/kiro/agents)")
 	project := flag.String("project", "", "Multi-agent-spec project directory (reads deployment.json)")
 	priority := flag.String("priority", "", "Filter by priority (p1, p2, p3) - only with -project")
+	install := flag.Bool("install", false, "Install generated files to user config directory (e.g., ~/.kiro/)")
+	prefix := flag.String("prefix", "", "Prefix for installed files (e.g., 'myteam' -> 'myteam_agent.json')")
 	verbose := flag.Bool("verbose", false, "Verbose output")
 	flag.Parse()
 
@@ -89,16 +96,96 @@ func main() {
 	}
 
 	// Handle single target
-	if *outputDir == "" {
-		fmt.Fprintf(os.Stderr, "Error: -output, -targets, or -project required\n")
+	if *outputDir == "" && *skillsDir == "" {
+		fmt.Fprintf(os.Stderr, "Error: -output, -targets, -project, or -skills required\n")
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	if err := generateAgents(agentList, *format, *outputDir, *verbose); err != nil {
-		fmt.Fprintf(os.Stderr, "Error generating agents: %v\n", err)
-		os.Exit(1)
+	if *outputDir != "" {
+		if err := generateAgents(agentList, *format, *outputDir, *verbose); err != nil {
+			fmt.Fprintf(os.Stderr, "Error generating agents: %v\n", err)
+			os.Exit(1)
+		}
 	}
+
+	// Handle skills generation
+	if *skillsDir != "" {
+		if err := runSkillsGeneration(*skillsDir, *skillsOutput, *format, *verbose); err != nil {
+			fmt.Fprintf(os.Stderr, "Error generating skills: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	// Handle installation to user directory
+	if *install && *format == "kiro" {
+		if *prefix == "" {
+			fmt.Fprintf(os.Stderr, "Error: -prefix required when using -install (e.g., -prefix=myteam)\n")
+			os.Exit(1)
+		}
+		if err := installKiroFiles(*outputDir, *skillsOutput, *prefix, *verbose); err != nil {
+			fmt.Fprintf(os.Stderr, "Error installing files: %v\n", err)
+			os.Exit(1)
+		}
+	} else if *install && *format != "kiro" {
+		fmt.Fprintf(os.Stderr, "Warning: --install only supported for kiro format currently\n")
+	}
+}
+
+func runSkillsGeneration(skillsDir, outputDir, format string, verbose bool) error {
+	// Read skill specs
+	skillList, err := skills.ReadCanonicalDir(skillsDir)
+	if err != nil {
+		return fmt.Errorf("failed to read skills from %s: %w", skillsDir, err)
+	}
+
+	if len(skillList) == 0 {
+		fmt.Printf("No skills found in %s\n", skillsDir)
+		return nil
+	}
+
+	if verbose {
+		fmt.Printf("Found %d skills in %s\n", len(skillList), skillsDir)
+		for _, skill := range skillList {
+			fmt.Printf("  - %s: %s\n", skill.Name, skill.Description)
+		}
+	}
+
+	// Determine output directory
+	if outputDir == "" {
+		// Default based on format
+		switch format {
+		case "kiro":
+			outputDir = "steering"
+		default:
+			outputDir = "skills"
+		}
+	}
+
+	// Get the adapter
+	adapter, ok := skillscore.GetAdapter(format)
+	if !ok {
+		available := skillscore.AdapterNames()
+		return fmt.Errorf("unknown skills format %q (available: %s)", format, strings.Join(available, ", "))
+	}
+
+	// Ensure output directory exists
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	// Write each skill
+	for _, skill := range skillList {
+		if err := adapter.WriteSkillDir(skill, outputDir); err != nil {
+			return fmt.Errorf("failed to write skill %s: %w", skill.Name, err)
+		}
+		if verbose {
+			fmt.Printf("Generated skill: %s\n", skill.Name)
+		}
+	}
+
+	fmt.Printf("Generated %d %s skills in %s\n", len(skillList), format, outputDir)
+	return nil
 }
 
 func generateAgents(agentList []*core.Agent, format, outputDir string, verbose bool) error {
@@ -271,4 +358,123 @@ func toPascalCase(s string) string {
 		}
 	}
 	return result.String()
+}
+
+// installKiroFiles installs generated Kiro files to ~/.kiro/
+// If prefix is provided, files are renamed to {prefix}_{filename} and
+// the "name" field inside agent JSON is also prefixed.
+func installKiroFiles(agentsDir, steeringDir, prefix string, verbose bool) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	kiroDir := filepath.Join(homeDir, ".kiro")
+	kiroAgentsDir := filepath.Join(kiroDir, "agents")
+	kiroSteeringDir := filepath.Join(kiroDir, "steering")
+
+	var installed int
+
+	// Install agent files
+	if agentsDir != "" {
+		if err := os.MkdirAll(kiroAgentsDir, 0755); err != nil {
+			return fmt.Errorf("failed to create %s: %w", kiroAgentsDir, err)
+		}
+
+		entries, err := os.ReadDir(agentsDir)
+		if err != nil {
+			return fmt.Errorf("failed to read agents directory: %w", err)
+		}
+
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+				continue
+			}
+
+			srcPath := filepath.Join(agentsDir, entry.Name())
+			dstName := entry.Name()
+			if prefix != "" {
+				dstName = prefix + "_" + dstName
+			}
+			dstPath := filepath.Join(kiroAgentsDir, dstName)
+
+			data, err := os.ReadFile(srcPath)
+			if err != nil {
+				return fmt.Errorf("failed to read %s: %w", srcPath, err)
+			}
+
+			// If prefix is set, modify the "name" field inside the JSON
+			if prefix != "" {
+				data, err = prefixAgentName(data, prefix)
+				if err != nil {
+					return fmt.Errorf("failed to prefix agent name in %s: %w", srcPath, err)
+				}
+			}
+
+			if err := os.WriteFile(dstPath, data, 0644); err != nil {
+				return fmt.Errorf("failed to write %s: %w", dstPath, err)
+			}
+
+			if verbose {
+				fmt.Printf("Installed %s\n", dstPath)
+			}
+			installed++
+		}
+	}
+
+	// Install steering files
+	if steeringDir != "" {
+		if err := os.MkdirAll(kiroSteeringDir, 0755); err != nil {
+			return fmt.Errorf("failed to create %s: %w", kiroSteeringDir, err)
+		}
+
+		entries, err := os.ReadDir(steeringDir)
+		if err != nil {
+			return fmt.Errorf("failed to read steering directory: %w", err)
+		}
+
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+				continue
+			}
+
+			srcPath := filepath.Join(steeringDir, entry.Name())
+			dstName := entry.Name()
+			if prefix != "" {
+				dstName = prefix + "_" + dstName
+			}
+			dstPath := filepath.Join(kiroSteeringDir, dstName)
+
+			data, err := os.ReadFile(srcPath)
+			if err != nil {
+				return fmt.Errorf("failed to read %s: %w", srcPath, err)
+			}
+
+			if err := os.WriteFile(dstPath, data, 0644); err != nil {
+				return fmt.Errorf("failed to write %s: %w", dstPath, err)
+			}
+
+			if verbose {
+				fmt.Printf("Installed %s\n", dstPath)
+			}
+			installed++
+		}
+	}
+
+	fmt.Printf("Installed %d files to %s\n", installed, kiroDir)
+	return nil
+}
+
+// prefixAgentName modifies the "name" field in a Kiro agent JSON to include the prefix.
+func prefixAgentName(data []byte, prefix string) ([]byte, error) {
+	var agent map[string]interface{}
+	if err := json.Unmarshal(data, &agent); err != nil {
+		return nil, err
+	}
+
+	if name, ok := agent["name"].(string); ok {
+		agent["name"] = prefix + "_" + name
+	}
+
+	return json.MarshalIndent(agent, "", "  ")
 }
