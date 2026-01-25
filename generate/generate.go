@@ -141,32 +141,8 @@ func loadCommands(dir string) ([]*commands.Command, error) {
 		return nil, nil // Commands are optional
 	}
 
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	var cmds []*commands.Command
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
-			continue
-		}
-
-		path := filepath.Join(dir, entry.Name())
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-
-		var cmd commands.Command
-		if err := json.Unmarshal(data, &cmd); err != nil {
-			return nil, fmt.Errorf("parse %s: %w", entry.Name(), err)
-		}
-
-		cmds = append(cmds, &cmd)
-	}
-
-	return cmds, nil
+	// Use ReadCanonicalDir which supports both .json and .md files
+	return commands.ReadCanonicalDir(dir)
 }
 
 func loadSkills(dir string) ([]*skills.Skill, error) {
@@ -174,32 +150,8 @@ func loadSkills(dir string) ([]*skills.Skill, error) {
 		return nil, nil // Skills are optional
 	}
 
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	var skls []*skills.Skill
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
-			continue
-		}
-
-		path := filepath.Join(dir, entry.Name())
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-
-		var skl skills.Skill
-		if err := json.Unmarshal(data, &skl); err != nil {
-			return nil, fmt.Errorf("parse %s: %w", entry.Name(), err)
-		}
-
-		skls = append(skls, &skl)
-	}
-
-	return skls, nil
+	// Use ReadCanonicalDir which supports both .json and .md files
+	return skills.ReadCanonicalDir(dir)
 }
 
 func loadAgents(dir string) ([]*agents.Agent, error) {
@@ -830,4 +782,72 @@ func generateGeminiCLIDeployment(agts []*agents.Agent, outputDir string) error {
 	}
 
 	return nil
+}
+
+// AgentsResult contains the results of simplified agent generation.
+type AgentsResult struct {
+	// AgentCount is the number of agents loaded.
+	AgentCount int
+
+	// TeamName is the name of the team being deployed.
+	TeamName string
+
+	// TargetsGenerated lists the names of generated targets.
+	TargetsGenerated []string
+
+	// GeneratedDirs maps target names to their output directories.
+	GeneratedDirs map[string]string
+}
+
+// Agents generates platform-specific agents from a specs directory with simplified options.
+//
+// The specsDir should contain:
+//   - agents/: Agent definitions (*.md with YAML frontmatter)
+//   - deployments/: Deployment definitions (*.json)
+//
+// The target parameter specifies which deployment file to use (looks for {target}.json).
+// The outputDir is the base directory for resolving relative output paths in the deployment.
+func Agents(specsDir, target, outputDir string) (*AgentsResult, error) {
+	result := &AgentsResult{
+		GeneratedDirs: make(map[string]string),
+	}
+
+	// Load agents from multi-agent-spec format
+	agentsDir := filepath.Join(specsDir, "agents")
+	agts, err := loadMultiAgentSpecAgents(agentsDir)
+	if err != nil {
+		return nil, fmt.Errorf("loading agents: %w", err)
+	}
+	result.AgentCount = len(agts)
+
+	// Construct deployment file path
+	deploymentFile := filepath.Join(specsDir, "deployments", target+".json")
+	if _, err := os.Stat(deploymentFile); os.IsNotExist(err) {
+		return nil, fmt.Errorf("deployment file not found: %s", deploymentFile)
+	}
+
+	// Load deployment
+	deployment, err := loadDeployment(deploymentFile)
+	if err != nil {
+		return nil, fmt.Errorf("loading deployment: %w", err)
+	}
+	result.TeamName = deployment.Team
+
+	// Generate each target
+	for _, tgt := range deployment.Targets {
+		// Resolve output path relative to outputDir (not specsDir)
+		targetOutputDir := tgt.Output
+		if !filepath.IsAbs(targetOutputDir) {
+			targetOutputDir = filepath.Join(outputDir, targetOutputDir)
+		}
+
+		if err := generateDeploymentTarget(tgt, agts, targetOutputDir); err != nil {
+			return nil, fmt.Errorf("generating target %s: %w", tgt.Name, err)
+		}
+
+		result.TargetsGenerated = append(result.TargetsGenerated, tgt.Name)
+		result.GeneratedDirs[tgt.Name] = targetOutputDir
+	}
+
+	return result, nil
 }
