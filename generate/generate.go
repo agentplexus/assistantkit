@@ -334,7 +334,7 @@ func generateKiroAgents(dir string, plugin *PluginSpec, skls []*skills.Skill, ag
 			if err != nil {
 				return fmt.Errorf("marshal agent %s: %w", agt.Name, err)
 			}
-			if err := os.WriteFile(path, data, 0644); err != nil {
+			if err := os.WriteFile(path, data, 0600); err != nil {
 				return fmt.Errorf("write agent %s: %w", agt.Name, err)
 			}
 		}

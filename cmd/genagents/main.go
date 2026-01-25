@@ -411,7 +411,7 @@ func installKiroFiles(agentsDir, steeringDir, prefix string, verbose bool) error
 				}
 			}
 
-			if err := os.WriteFile(dstPath, data, 0644); err != nil {
+			if err := os.WriteFile(dstPath, data, 0600); err != nil {
 				return fmt.Errorf("failed to write %s: %w", dstPath, err)
 			}
 
@@ -450,7 +450,7 @@ func installKiroFiles(agentsDir, steeringDir, prefix string, verbose bool) error
 				return fmt.Errorf("failed to read %s: %w", srcPath, err)
 			}
 
-			if err := os.WriteFile(dstPath, data, 0644); err != nil {
+			if err := os.WriteFile(dstPath, data, 0600); err != nil {
 				return fmt.Errorf("failed to write %s: %w", dstPath, err)
 			}
 

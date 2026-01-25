@@ -202,7 +202,7 @@ func (e *ValidationError) Error() string {
 }
 
 // DefaultFileMode is the default permission for created files.
-const DefaultFileMode = 0644
+const DefaultFileMode = 0600
 
 // DefaultDirMode is the default permission for created directories.
 const DefaultDirMode = 0755

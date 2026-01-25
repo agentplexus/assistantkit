@@ -81,7 +81,7 @@ func (c *Checker) isInstalledByCheck(check string) bool {
 		return false
 	}
 
-	cmd := exec.Command(parts[0], parts[1:]...)
+	cmd := exec.Command(parts[0], parts[1:]...) //nolint:gosec // G204: intentional command execution for CLI tool
 	err := cmd.Run()
 	return err == nil
 }

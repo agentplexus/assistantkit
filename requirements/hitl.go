@@ -195,7 +195,7 @@ func promptForInstall(missing MissingRequirement, prompter Prompter) bool {
 func runInstall(method InstallMethod, prompter Prompter) bool {
 	prompter.Info(fmt.Sprintf("Running: %s", method.Command))
 
-	cmd := exec.Command("sh", "-c", method.Command)
+	cmd := exec.Command("sh", "-c", method.Command) //nolint:gosec // G204: intentional command execution for CLI tool
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
