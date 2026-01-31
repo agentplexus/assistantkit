@@ -159,32 +159,8 @@ func loadAgents(dir string) ([]*agents.Agent, error) {
 		return nil, nil // Agents are optional
 	}
 
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	var agts []*agents.Agent
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
-			continue
-		}
-
-		path := filepath.Join(dir, entry.Name())
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-
-		var agt agents.Agent
-		if err := json.Unmarshal(data, &agt); err != nil {
-			return nil, fmt.Errorf("parse %s: %w", entry.Name(), err)
-		}
-
-		agts = append(agts, &agt)
-	}
-
-	return agts, nil
+	// Use agents.ReadCanonicalDir which supports both .md (multi-agent-spec) and .json files
+	return agents.ReadCanonicalDir(dir)
 }
 
 func generateClaude(dir string, plugin *PluginSpec, cmds []*commands.Command, skls []*skills.Skill, agts []*agents.Agent) error {
@@ -850,4 +826,178 @@ func Agents(specsDir, target, outputDir string) (*AgentsResult, error) {
 	}
 
 	return result, nil
+}
+
+// GenerateResult contains the results of unified plugin generation.
+type GenerateResult struct {
+	// CommandCount is the number of commands loaded.
+	CommandCount int
+
+	// SkillCount is the number of skills loaded.
+	SkillCount int
+
+	// AgentCount is the number of agents loaded.
+	AgentCount int
+
+	// TeamName is the name of the team being deployed.
+	TeamName string
+
+	// TargetsGenerated lists the names of generated targets.
+	TargetsGenerated []string
+
+	// GeneratedDirs maps target names to their output directories.
+	GeneratedDirs map[string]string
+}
+
+// Generate generates platform-specific plugins from a unified specs directory.
+// Output is driven by the deployment file at specs/deployments/{target}.json.
+//
+// Each deployment target receives a complete plugin:
+//   - agents (from specs/agents/*.md)
+//   - commands (from specs/commands/*.md)
+//   - skills (from specs/skills/*.md)
+//   - plugin manifest (from specs/plugin.json)
+//
+// The specsDir should contain:
+//   - plugin.json: Plugin metadata
+//   - commands/: Command definitions (*.md or *.json)
+//   - skills/: Skill definitions (*.md or *.json)
+//   - agents/: Agent definitions (*.md with YAML frontmatter)
+//   - deployments/: Deployment definitions (*.json)
+//
+// The target parameter specifies which deployment file to use (looks for {target}.json).
+// The outputDir is the base directory for resolving relative output paths in the deployment.
+func Generate(specsDir, target, outputDir string) (*GenerateResult, error) {
+	result := &GenerateResult{
+		GeneratedDirs: make(map[string]string),
+	}
+
+	// Load plugin metadata
+	pluginPath := filepath.Join(specsDir, "plugin.json")
+	var plugin *PluginSpec
+	if _, err := os.Stat(pluginPath); err == nil {
+		plugin, err = loadPlugin(pluginPath)
+		if err != nil {
+			return nil, fmt.Errorf("loading plugin spec: %w", err)
+		}
+	} else {
+		// Create minimal plugin spec if not present
+		plugin = &PluginSpec{}
+	}
+
+	// Load commands
+	commandsDir := filepath.Join(specsDir, "commands")
+	cmds, err := loadCommands(commandsDir)
+	if err != nil {
+		return nil, fmt.Errorf("loading commands: %w", err)
+	}
+	result.CommandCount = len(cmds)
+
+	// Load skills
+	skillsDir := filepath.Join(specsDir, "skills")
+	skls, err := loadSkills(skillsDir)
+	if err != nil {
+		return nil, fmt.Errorf("loading skills: %w", err)
+	}
+	result.SkillCount = len(skls)
+
+	// Load agents from multi-agent-spec format (.md files)
+	agentsDir := filepath.Join(specsDir, "agents")
+	agts, err := loadMultiAgentSpecAgents(agentsDir)
+	if err != nil {
+		return nil, fmt.Errorf("loading agents: %w", err)
+	}
+	result.AgentCount = len(agts)
+
+	// Load deployment
+	deploymentFile := filepath.Join(specsDir, "deployments", target+".json")
+	if _, err := os.Stat(deploymentFile); os.IsNotExist(err) {
+		return nil, fmt.Errorf("deployment file not found: %s", deploymentFile)
+	}
+
+	deployment, err := loadDeployment(deploymentFile)
+	if err != nil {
+		return nil, fmt.Errorf("loading deployment: %w", err)
+	}
+	result.TeamName = deployment.Team
+
+	// Generate each target
+	for _, tgt := range deployment.Targets {
+		// Resolve output path relative to outputDir
+		targetOutputDir := tgt.Output
+		if !filepath.IsAbs(targetOutputDir) {
+			targetOutputDir = filepath.Join(outputDir, targetOutputDir)
+		}
+
+		if err := generatePlatformPlugin(tgt.Platform, targetOutputDir, plugin, cmds, skls, agts); err != nil {
+			return nil, fmt.Errorf("generating target %s: %w", tgt.Name, err)
+		}
+
+		result.TargetsGenerated = append(result.TargetsGenerated, tgt.Name)
+		result.GeneratedDirs[tgt.Name] = targetOutputDir
+	}
+
+	return result, nil
+}
+
+// generatePlatformPlugin generates a complete plugin for a specific platform.
+// It combines agents, commands, skills, and plugin manifest into a platform-specific format.
+func generatePlatformPlugin(
+	platform string,
+	outputDir string,
+	plugin *PluginSpec,
+	cmds []*commands.Command,
+	skls []*skills.Skill,
+	agts []*agents.Agent,
+) error {
+	// Create output directory
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return fmt.Errorf("creating output dir: %w", err)
+	}
+
+	switch platform {
+	case "claude", "claude-code":
+		return generateClaude(outputDir, plugin, cmds, skls, agts)
+	case "kiro", "kiro-cli":
+		return generateKiro(outputDir, plugin, skls, agts)
+	case "gemini", "gemini-cli":
+		return generateGemini(outputDir, plugin, cmds)
+	default:
+		// For unsupported platforms, log a warning but don't fail
+		fmt.Printf("  Warning: platform %s not fully supported, generating agents only\n", platform)
+		return generateDeploymentTargetAgentsOnly(platform, agts, outputDir)
+	}
+}
+
+// generateDeploymentTargetAgentsOnly generates only agents for unsupported platforms.
+func generateDeploymentTargetAgentsOnly(platform string, agts []*agents.Agent, outputDir string) error {
+	if len(agts) == 0 {
+		return nil
+	}
+
+	// Map platform names to adapter names
+	adapterName := platform
+	switch platform {
+	case "claude-code":
+		adapterName = "claude"
+	case "kiro-cli":
+		adapterName = "kiro"
+	case "gemini-cli":
+		adapterName = "gemini"
+	}
+
+	adapter, ok := agents.GetAdapter(adapterName)
+	if !ok {
+		return fmt.Errorf("%s adapter not found", adapterName)
+	}
+
+	for _, agt := range agts {
+		ext := adapter.FileExtension()
+		path := filepath.Join(outputDir, agt.Name+ext)
+		if err := adapter.WriteFile(agt, path); err != nil {
+			return fmt.Errorf("writing %s: %w", agt.Name, err)
+		}
+	}
+
+	return nil
 }
