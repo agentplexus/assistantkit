@@ -10,15 +10,36 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	genSpecsDir  string
+	genTarget    string
+	genOutputDir string
+)
+
 var generateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate platform-specific plugins from canonical specs",
-	Long: `Generate platform-specific plugins from canonical JSON specifications.
+	Long: `Generate platform-specific plugins from a unified specs directory.
 
-Supported platforms:
-  - claude: Claude Code plugins (.claude-plugin/)
-  - kiro: Kiro IDE Powers (POWER.md + mcp.json)
-  - gemini: Gemini CLI extensions (gemini-extension.json)`,
+This command reads from a specs directory and generates complete plugins for
+each platform defined in the deployment file.
+
+The specs directory should contain:
+  - plugin.json: Plugin metadata (name, version, keywords, mcpServers)
+  - commands/: Command definitions (*.md or *.json)
+  - skills/: Skill definitions (*.md or *.json)
+  - agents/: Agent definitions (*.md with YAML frontmatter)
+  - deployments/: Deployment definitions (*.json)
+
+Each deployment target receives a complete plugin:
+  - claude/claude-code: .claude-plugin/, commands/, skills/, agents/
+  - kiro/kiro-cli: POWER.md + mcp.json or agents/*.json
+  - gemini/gemini-cli: gemini-extension.json, commands/, agents/
+
+Example:
+  assistantkit generate
+  assistantkit generate --specs=specs --target=local --output=.`,
+	RunE: runGenerate,
 }
 
 var (
@@ -130,6 +151,11 @@ func init() {
 	generateCmd.AddCommand(generateAgentsCmd)
 	generateCmd.AddCommand(generateAllCmd)
 
+	// Main generate command flags
+	generateCmd.Flags().StringVar(&genSpecsDir, "specs", "specs", "Path to unified specs directory")
+	generateCmd.Flags().StringVar(&genTarget, "target", "local", "Deployment target (looks for specs/deployments/<target>.json)")
+	generateCmd.Flags().StringVar(&genOutputDir, "output", ".", "Output base directory for relative paths")
+
 	generatePluginsCmd.Flags().StringVar(&specDir, "spec", "plugins/spec", "Path to canonical spec directory")
 	generatePluginsCmd.Flags().StringVar(&outputDir, "output", "plugins", "Output directory for generated plugins")
 	generatePluginsCmd.Flags().StringSliceVar(&platforms, "platforms", []string{"claude", "kiro"}, "Platforms to generate (claude,kiro,gemini)")
@@ -149,7 +175,55 @@ func init() {
 	generateAllCmd.Flags().StringSliceVar(&allPlatforms, "platforms", []string{"claude", "kiro", "gemini"}, "Platforms to generate")
 }
 
+func runGenerate(cmd *cobra.Command, args []string) error {
+	// Resolve paths
+	absSpecsDir, err := filepath.Abs(genSpecsDir)
+	if err != nil {
+		return fmt.Errorf("resolving specs dir: %w", err)
+	}
+
+	absOutputDir, err := filepath.Abs(genOutputDir)
+	if err != nil {
+		return fmt.Errorf("resolving output dir: %w", err)
+	}
+
+	// Validate specs directory exists
+	if _, err := os.Stat(absSpecsDir); os.IsNotExist(err) {
+		return fmt.Errorf("specs directory not found: %s", absSpecsDir)
+	}
+
+	// Print header
+	fmt.Println("=== AssistantKit Generator ===")
+	fmt.Printf("Specs directory: %s\n", absSpecsDir)
+	fmt.Printf("Target: %s\n", genTarget)
+	fmt.Printf("Output directory: %s\n", absOutputDir)
+	fmt.Println()
+
+	// Generate using the unified Generate function
+	result, err := generate.Generate(absSpecsDir, genTarget, absOutputDir)
+	if err != nil {
+		return fmt.Errorf("generating: %w", err)
+	}
+
+	// Print results
+	if result.TeamName != "" {
+		fmt.Printf("Team: %s\n", result.TeamName)
+	}
+	fmt.Printf("Loaded: %d commands, %d skills, %d agents\n\n", result.CommandCount, result.SkillCount, result.AgentCount)
+
+	fmt.Println("Generated targets:")
+	for _, target := range result.TargetsGenerated {
+		dir := result.GeneratedDirs[target]
+		fmt.Printf("  - %s: %s\n", target, dir)
+	}
+
+	fmt.Println("\nDone!")
+	return nil
+}
+
 func runGenerateDeployment(cmd *cobra.Command, args []string) error {
+	fmt.Println("Note: 'generate deployment' is deprecated. Use 'generate --specs=... --target=...' instead.")
+	fmt.Println()
 	// Resolve paths
 	absSpecsDir, err := filepath.Abs(deploymentSpecDir)
 	if err != nil {
@@ -196,6 +270,9 @@ func runGenerateDeployment(cmd *cobra.Command, args []string) error {
 }
 
 func runGeneratePlugins(cmd *cobra.Command, args []string) error {
+	fmt.Println("Note: 'generate plugins' is deprecated. Use 'generate --specs=... --target=...' instead.")
+	fmt.Println()
+
 	// Resolve paths
 	absSpecDir, err := filepath.Abs(specDir)
 	if err != nil {
@@ -238,6 +315,9 @@ func runGeneratePlugins(cmd *cobra.Command, args []string) error {
 }
 
 func runGenerateAgents(cmd *cobra.Command, args []string) error {
+	fmt.Println("Note: 'generate agents' is deprecated. Use 'generate --specs=... --target=...' instead.")
+	fmt.Println()
+
 	// Resolve paths
 	absSpecsDir, err := filepath.Abs(agentsSpecDir)
 	if err != nil {
@@ -282,6 +362,9 @@ func runGenerateAgents(cmd *cobra.Command, args []string) error {
 }
 
 func runGenerateAll(cmd *cobra.Command, args []string) error {
+	fmt.Println("Note: 'generate all' is deprecated. Use 'generate --specs=... --target=...' instead.")
+	fmt.Println()
+
 	// Resolve paths
 	absSpecsDir, err := filepath.Abs(allSpecsDir)
 	if err != nil {
