@@ -1,47 +1,53 @@
-# Generate Plugins
+# Generate Command
 
-The `generate plugins` command creates platform-specific plugins from canonical JSON specifications.
+The `generate` command creates platform-specific plugins from a unified specs directory.
+
+!!! note "v0.9.0 Update"
+    As of v0.9.0, the main `generate` command is the recommended way to generate plugins. The `generate plugins`, `generate agents`, `generate all`, and `generate deployment` subcommands are deprecated.
 
 ## Synopsis
 
 ```bash
-assistantkit generate plugins [flags]
+assistantkit generate [flags]
 ```
 
 ## Description
 
-This command reads plugin definitions from a canonical spec directory and generates platform-specific plugins for Claude Code, Kiro IDE, and Gemini CLI.
-
-The canonical spec format allows you to define your plugin once and automatically generate outputs for multiple AI coding assistants.
+This command reads plugin definitions from a unified specs directory and generates complete platform-specific plugins for each deployment target. Each target receives agents, commands, skills, and plugin manifest.
 
 ## Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--spec` | `plugins/spec` | Path to canonical spec directory |
-| `--output` | `plugins` | Output directory for generated plugins |
-| `--platforms` | `claude,kiro` | Comma-separated list of platforms to generate |
-| `--config` | *(none)* | Config file path (assistantkit.yaml if exists) |
+| `--specs` | `specs` | Path to unified specs directory |
+| `--target` | `local` | Deployment target (looks for `specs/deployments/<target>.json`) |
+| `--output` | `.` | Output base directory for relative paths |
 
 ## Supported Platforms
 
-- **claude**: Claude Code plugins (`.claude-plugin/` directory structure)
-- **kiro**: Kiro IDE Powers (POWER.md + mcp.json) or Kiro Agents (agents/*.json)
-- **gemini**: Gemini CLI extensions (gemini-extension.json)
+- **claude-code**: Claude Code plugins (`.claude-plugin/`, commands/, skills/, agents/)
+- **kiro-cli**: Kiro IDE Powers (POWER.md + mcp.json) or Kiro Agents (agents/*.json)
+- **gemini-cli**: Gemini CLI extensions (gemini-extension.json, commands/, agents/)
 
-## Spec Directory Structure
+## Specs Directory Structure
 
-The canonical spec directory should contain:
+The unified specs directory should contain:
 
 ```
-plugins/spec/
-├── plugin.json       # Plugin metadata
-├── commands/         # Command definitions (*.json)
-│   └── create.json
-├── skills/           # Skill definitions (*.json)
-│   └── review.json
-└── agents/           # Agent definitions (*.json)
-    └── release.json
+specs/
+├── plugin.json          # Plugin metadata
+├── agents/              # Agent definitions (*.md with YAML frontmatter)
+│   ├── coordinator.md
+│   └── writer.md
+├── commands/            # Command definitions (*.md or *.json)
+│   └── release.md
+├── skills/              # Skill definitions (*.md or *.json)
+│   └── review.md
+├── teams/               # Team workflow definitions (optional)
+│   └── my-team.json
+└── deployments/         # Deployment configurations
+    ├── local.json       # Local development (default)
+    └── production.json  # Production deployment
 ```
 
 ### plugin.json
@@ -64,116 +70,152 @@ The plugin metadata file defines the plugin name, version, keywords, and MCP ser
 }
 ```
 
-### commands/*.json
+### agents/*.md
+
+Agent definitions using multi-agent-spec format with YAML frontmatter:
+
+```markdown
+---
+name: release-coordinator
+description: Orchestrates software releases
+model: sonnet
+tools: [Read, Write, Bash, Glob, Grep]
+skills: [version-analysis, commit-classification]
+---
+
+You are a release coordinator agent responsible for...
+```
+
+### commands/*.md
 
 Command definitions for slash commands:
 
-```json
-{
-  "name": "create",
-  "description": "Create a new resource",
-  "arguments": [
-    {"name": "name", "description": "Resource name", "required": true}
-  ],
-  "instructions": "Instructions for the AI assistant...",
-  "examples": ["Example usage"]
-}
+```markdown
+---
+name: release
+description: Execute full release workflow
+arguments: [version]
+dependencies: [version-analysis]
+---
+
+# Release Command
+
+When executing a release, follow these steps...
 ```
 
-### skills/*.json
+### skills/*.md
 
 Skill definitions for reusable capabilities:
 
-```json
-{
-  "name": "code-review",
-  "description": "Reviews code for best practices",
-  "instructions": "Instructions for performing code review...",
-  "triggers": ["review code", "check code"]
-}
+```markdown
+---
+name: code-review
+description: Reviews code for best practices
+triggers: [review code, check code]
+---
+
+# Code Review Skill
+
+When reviewing code, analyze for...
 ```
 
-### agents/*.json
+### deployments/*.json
 
-Agent definitions for autonomous tasks:
+Deployment configurations defining output targets:
 
 ```json
 {
-  "name": "release-agent",
-  "description": "Manages release process",
-  "model": "claude-sonnet-4",
-  "systemPrompt": "You are a release management agent...",
-  "tools": ["read_file", "write_file", "run_command"]
+  "team": "my-team",
+  "targets": [
+    {
+      "name": "local-claude",
+      "platform": "claude-code",
+      "output": "plugins/claude"
+    },
+    {
+      "name": "local-kiro",
+      "platform": "kiro-cli",
+      "output": "plugins/kiro"
+    },
+    {
+      "name": "local-gemini",
+      "platform": "gemini-cli",
+      "output": "plugins/gemini"
+    }
+  ]
 }
 ```
 
 ## Generated Output
 
-### Claude Code
+Each deployment target receives a complete plugin:
 
-Generates a `.claude-plugin/` directory structure:
+### Claude Code (`claude-code`)
 
 ```
 plugins/claude/
 ├── .claude-plugin/
 │   └── plugin.json       # Claude plugin manifest
 ├── commands/
-│   └── create.md         # Command instructions
-└── skills/
-    └── code-review/
-        └── SKILL.md      # Skill instructions
-```
-
-### Kiro IDE
-
-Generates either a Power or Agents format based on the plugin spec:
-
-**Power format** (when keywords or mcpServers are present):
-
-```
-plugins/kiro/
-├── POWER.md              # Power description
-└── mcp.json              # MCP server configuration
-```
-
-**Agents format** (when no keywords/mcpServers):
-
-```
-plugins/kiro/
+│   └── release.md        # Command instructions
+├── skills/
+│   └── code-review/
+│       └── SKILL.md      # Skill instructions
 └── agents/
-    └── release-agent.json  # Agent definition
+    └── release-coordinator.md  # Agent definition
 ```
 
-### Gemini CLI
+### Kiro CLI (`kiro-cli`)
 
-Generates a Gemini extension:
+```
+plugins/kiro/
+├── POWER.md              # Power description (or agents/*.json)
+├── mcp.json              # MCP server configuration
+└── steering/
+    └── code-review.md    # Steering files from skills
+```
+
+### Gemini CLI (`gemini-cli`)
 
 ```
 plugins/gemini/
-├── gemini-extension.json  # Extension manifest
+├── gemini-extension.json # Extension manifest
+├── commands/
+│   └── release.toml      # Command in TOML format
 └── agents/
-    └── release-agent.json  # Agent definition
+    └── release-coordinator.toml  # Agent in TOML format
 ```
 
 ## Examples
 
-Generate plugins for all default platforms:
+Generate plugins using defaults:
 
 ```bash
-assistantkit generate plugins
+assistantkit generate
 ```
 
-Generate only for Claude:
+Use a specific deployment target:
 
 ```bash
-assistantkit generate plugins --platforms=claude
+assistantkit generate --target=production
 ```
 
-Generate for all platforms with custom directories:
+Generate with custom directories:
 
 ```bash
-assistantkit generate plugins --spec=canonical --output=dist --platforms=claude,kiro,gemini
+assistantkit generate --specs=my-specs --target=local --output=/path/to/output
 ```
+
+## Deprecated Subcommands
+
+The following subcommands are deprecated and will show warnings when used:
+
+| Deprecated | Replacement |
+|------------|-------------|
+| `generate plugins` | `generate --specs=... --target=...` |
+| `generate agents` | `generate --specs=... --target=...` |
+| `generate all` | `generate --specs=... --target=...` |
+| `generate deployment` | `generate --specs=... --target=...` |
 
 ## See Also
 
