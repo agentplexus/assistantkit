@@ -35,6 +35,49 @@ Tool A Format ──► Adapter A ──► Canonical Model ──► Adapter B 
 | `hooks/windsurf` | Windsurf hooks adapter |
 | `context/core` | Project context types and converter registry |
 | `context/claude` | CLAUDE.md converter from CONTEXT.json |
+| `generate` | Unified plugin generation from specs directory |
+
+## CLI Workflow
+
+The recommended way to generate plugins is using the unified `generate` command:
+
+```bash
+# Generate from specs directory using local deployment target
+assistantkit generate
+
+# Use a specific deployment target
+assistantkit generate --target=production
+
+# Specify all options
+assistantkit generate --specs=specs --target=local --output=.
+```
+
+### Specs Directory Structure
+
+```
+specs/
+├── plugin.json          # Plugin metadata
+├── agents/              # multi-agent-spec format (*.md with YAML frontmatter)
+├── commands/            # AssistantKit extension (*.md or *.json)
+├── skills/              # AssistantKit extension (*.md or *.json)
+├── teams/               # multi-agent-spec format (*.json)
+└── deployments/         # Deployment targets (*.json)
+```
+
+### Deployment-Driven Output
+
+Each deployment target generates a complete plugin:
+
+```json
+{
+  "team": "my-team",
+  "targets": [
+    {"name": "local-claude", "platform": "claude-code", "output": "plugins/claude"},
+    {"name": "local-kiro", "platform": "kiro-cli", "output": "plugins/kiro"},
+    {"name": "local-gemini", "platform": "gemini-cli", "output": "plugins/gemini"}
+  ]
+}
+```
 
 ## Commands
 

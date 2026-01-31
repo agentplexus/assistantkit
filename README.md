@@ -58,102 +58,64 @@ go install github.com/agentplexus/assistantkit/cmd/assistantkit@latest
 
 ## CLI
 
-AssistantKit provides a CLI tool for generating platform-specific plugins from canonical JSON specifications.
+AssistantKit provides a CLI tool for generating platform-specific plugins from a unified specs directory.
 
-### Generate Plugins
+### Generate (Recommended)
 
-Generate plugins for multiple platforms from a canonical spec:
+Generate complete plugins for all platforms from a unified specs directory:
 
 ```bash
-assistantkit generate plugins
+assistantkit generate
 ```
 
-This reads from `plugins/spec/` and generates platform-specific plugins in `plugins/`.
+This reads from `specs/` and generates platform-specific plugins based on deployment targets.
 
 #### Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--spec` | `plugins/spec` | Path to canonical spec directory |
-| `--output` | `plugins` | Output directory for generated plugins |
-| `--platforms` | `claude,kiro` | Platforms to generate (claude, kiro, gemini) |
-
-#### Example
-
-```bash
-# Generate for all default platforms
-assistantkit generate plugins
-
-# Generate only for Claude
-assistantkit generate plugins --platforms=claude
-
-# Use custom directories
-assistantkit generate plugins --spec=canonical --output=dist
-```
-
-### Spec Directory Structure
-
-The canonical spec directory should contain:
-
-```
-plugins/spec/
-├── plugin.json       # Plugin metadata (name, version, keywords, mcpServers)
-├── commands/         # Command definitions (*.json)
-│   └── create.json
-├── skills/           # Skill definitions (*.json)
-│   └── review.json
-└── agents/           # Agent definitions (*.json)
-    └── release.json
-```
-
-### Generate Agents (Simplified)
-
-Generate platform-specific agents from a multi-agent-spec format directory:
-
-```bash
-assistantkit generate agents
-```
-
-This is a simplified command that reads from `specs/agents/*.md` (YAML frontmatter + markdown body) and uses `specs/deployments/<target>.json` to determine output locations.
-
-#### Flags
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--specs` | `specs` | Path to specs directory containing agents/ and deployments/ |
+| `--specs` | `specs` | Path to unified specs directory |
 | `--target` | `local` | Deployment target (looks for `specs/deployments/<target>.json`) |
-| `--output` | `.` | Output base directory (repo root) for relative paths |
+| `--output` | `.` | Output base directory for relative paths |
 
 #### Example
 
 ```bash
-# Generate using defaults (target=local, output=current directory)
-assistantkit generate agents
+# Generate using defaults (specs=specs, target=local, output=current directory)
+assistantkit generate
 
 # Use a different deployment target
-assistantkit generate agents --target=agentcore
+assistantkit generate --target=production
 
 # Specify all options
-assistantkit generate agents --specs=specs --target=local --output=/path/to/repo
+assistantkit generate --specs=specs --target=local --output=/path/to/repo
 ```
 
-#### Specs Directory Structure
+### Specs Directory Structure
+
+The unified specs directory should contain:
 
 ```
 specs/
+├── plugin.json          # Plugin metadata (name, version, keywords, mcpServers)
 ├── agents/              # Agent definitions (*.md with YAML frontmatter)
 │   ├── coordinator.md
 │   ├── researcher.md
 │   └── writer.md
+├── commands/            # Command definitions (*.md or *.json)
+│   └── release.md
+├── skills/              # Skill definitions (*.md or *.json)
+│   └── review.md
 ├── teams/               # Team workflow definitions (optional)
 │   └── my-team.json
 └── deployments/         # Deployment configurations
     ├── local.json       # Local development (default)
-    ├── agentcore.json   # AWS AgentCore
-    └── k8s.json         # Kubernetes
+    └── production.json  # Production deployment
 ```
 
-#### Deployment File Format
+### Deployment File Format
+
+The deployment file drives output generation. Each target receives a complete plugin:
 
 ```json
 {
@@ -162,12 +124,17 @@ specs/
     {
       "name": "local-claude",
       "platform": "claude-code",
-      "output": ".claude/agents"
+      "output": "plugins/claude"
     },
     {
       "name": "local-kiro",
       "platform": "kiro-cli",
-      "output": "plugins/kiro/agents"
+      "output": "plugins/kiro"
+    },
+    {
+      "name": "local-gemini",
+      "platform": "gemini-cli",
+      "output": "plugins/gemini"
     }
   ]
 }
@@ -177,11 +144,34 @@ Output paths are resolved relative to the `--output` directory.
 
 ### Generated Output
 
-The generator produces platform-specific plugins:
+Each deployment target receives a complete plugin for that platform:
 
-- **claude/**: Claude Code plugin (`.claude-plugin/`, commands/, skills/)
-- **kiro/**: Kiro IDE Power (POWER.md + mcp.json) or Kiro Agents (agents/*.json)
-- **gemini/**: Gemini CLI extension (gemini-extension.json, agents/)
+```
+plugins/claude/
+├── .claude-plugin/plugin.json
+├── commands/*.md
+├── skills/*/SKILL.md
+└── agents/*.md
+
+plugins/kiro/
+├── POWER.md (or agents/*.json)
+├── mcp.json
+└── steering/*.md
+
+plugins/gemini/
+├── gemini-extension.json
+├── commands/*.toml
+└── agents/*.toml
+```
+
+### Deprecated Commands
+
+The following subcommands are deprecated and will be removed in a future release:
+
+- `generate plugins` → Use `generate --specs=... --target=...` instead
+- `generate agents` → Use `generate --specs=... --target=...` instead
+- `generate all` → Use `generate --specs=... --target=...` instead
+- `generate deployment` → Use `generate --specs=... --target=...` instead
 
 ## MCP Configuration
 
