@@ -8,7 +8,7 @@
   "releases": [
     {
       "version": "v0.9.0",
-      "date": "2026-01-30",
+      "date": "2026-02-02",
       "highlights": [
         { "description": "Unified specs/ directory with deployment-driven plugin generation" },
         { "description": "Single 'assistantkit generate' command replaces separate subcommands" }
@@ -31,6 +31,9 @@
       "documentation": [
         { "description": "Updated README CLI section for unified generate workflow", "commit": "88e7399" },
         { "description": "Updated CLAUDE.md with generate package and CLI workflow sections", "commit": "88e7399" }
+      ],
+      "dependencies": [
+        { "description": "Upgraded `go-github` v81 → v82", "commit": "90aecb4" }
       ]
     },
     {
